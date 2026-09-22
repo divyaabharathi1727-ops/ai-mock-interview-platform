@@ -1,5 +1,12 @@
 import { clearAuth, getToken } from "@/lib/auth";
-import type { ApiErrorResponse, AuthResponse, User } from "@/types/auth";
+import type {
+  ApiErrorResponse,
+  AuthResponse,
+  Interview,
+  InterviewCreateRequest,
+  InterviewUpdateRequest,
+  User,
+} from "@/types/auth";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").replace(/\/$/, "");
 
@@ -57,4 +64,30 @@ export function register(name: string, email: string, password: string): Promise
 
 export function getCurrentUser(): Promise<User> {
   return apiRequest<User>("/api/users/me");
+}
+
+export function createInterview(request: InterviewCreateRequest): Promise<Interview> {
+  return apiRequest<Interview>("/api/interviews", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function getInterviews(): Promise<Interview[]> {
+  return apiRequest<Interview[]>("/api/interviews");
+}
+
+export function getInterview(id: number): Promise<Interview> {
+  return apiRequest<Interview>(`/api/interviews/${id}`);
+}
+
+export function updateInterview(id: number, request: InterviewUpdateRequest): Promise<Interview> {
+  return apiRequest<Interview>(`/api/interviews/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
+}
+
+export function deleteInterview(id: number): Promise<void> {
+  return apiRequest<void>(`/api/interviews/${id}`, { method: "DELETE" });
 }
