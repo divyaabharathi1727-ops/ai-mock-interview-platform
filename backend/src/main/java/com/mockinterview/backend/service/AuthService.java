@@ -62,6 +62,12 @@ public class AuthService {
         return new AuthResponse(token, mapToUserResponse(user));
     }
 
+    public UserResponse currentUser(String email) {
+        User user = userRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new InvalidCredentialsException("Authenticated user no longer exists"));
+        return mapToUserResponse(user);
+    }
+
     private UserResponse mapToUserResponse(User user) {
         return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getRole());
     }
