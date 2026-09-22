@@ -2,8 +2,14 @@ import { clearAuth, getToken } from "@/lib/auth";
 import type {
   ApiErrorResponse,
   AuthResponse,
+  AnswerRequest,
+  AnswerResponse,
   Interview,
+  InterviewCompletion,
   InterviewCreateRequest,
+  InterviewQuestion,
+  InterviewResults,
+  InterviewSession,
   InterviewUpdateRequest,
   User,
 } from "@/types/auth";
@@ -90,4 +96,31 @@ export function updateInterview(id: number, request: InterviewUpdateRequest): Pr
 
 export function deleteInterview(id: number): Promise<void> {
   return apiRequest<void>(`/api/interviews/${id}`, { method: "DELETE" });
+}
+
+export function startInterview(id: number): Promise<InterviewSession> {
+  return apiRequest<InterviewSession>(`/api/interviews/${id}/start`, { method: "POST" });
+}
+
+export function getInterviewQuestions(id: number): Promise<InterviewQuestion[]> {
+  return apiRequest<InterviewQuestion[]>(`/api/interviews/${id}/questions`);
+}
+
+export function getCurrentQuestion(id: number): Promise<InterviewSession> {
+  return apiRequest<InterviewSession>(`/api/interviews/${id}/questions/current`);
+}
+
+export function submitAnswer(id: number, questionId: number, request: AnswerRequest): Promise<AnswerResponse> {
+  return apiRequest<AnswerResponse>(`/api/interviews/${id}/questions/${questionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+export function finishInterview(id: number): Promise<InterviewCompletion> {
+  return apiRequest<InterviewCompletion>(`/api/interviews/${id}/finish`, { method: "POST" });
+}
+
+export function getInterviewResults(id: number): Promise<InterviewResults> {
+  return apiRequest<InterviewResults>(`/api/interviews/${id}/results`);
 }

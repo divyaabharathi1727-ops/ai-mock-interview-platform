@@ -56,6 +56,9 @@ public class InterviewService {
     @Transactional
     public InterviewResponse updateInterview(String email, Long id, InterviewUpdateRequest request) {
         Interview interview = findOwnedInterview(email, id);
+        if (interview.getStatus() == InterviewStatus.COMPLETED) {
+            throw new IllegalArgumentException("Completed interviews cannot be modified");
+        }
         interview.setJobRole(request.getJobRole().trim());
         interview.setInterviewType(request.getInterviewType().trim());
         interview.setDifficulty(parseDifficulty(request.getDifficulty()));

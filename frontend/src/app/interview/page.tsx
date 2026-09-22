@@ -23,8 +23,8 @@ function InterviewSetup() {
 		setError("");
 		setIsCreating(true);
 		try {
-			await createInterview({ jobRole, interviewType, difficulty });
-			router.push("/history");
+			const interview = await createInterview({ jobRole, interviewType, difficulty });
+			router.push(`/interview/${interview.id}`);
 		} catch (requestError) {
 			setError(requestError instanceof ApiError ? requestError.message : "Could not create the interview.");
 		} finally {
