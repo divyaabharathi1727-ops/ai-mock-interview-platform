@@ -1,0 +1,28 @@
+package com.mockinterview.backend.exception;
+
+import java.time.LocalDateTime;
+
+public class ApiError {
+
+    private final LocalDateTime timestamp;
+    private final int status;
+    private final String message;
+
+    public ApiError(int status, String message) {
+        this.timestamp = LocalDateTime.now();
+        this.status = status;
+        this.message = message;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public int getStatus() {
+        return status;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+}
