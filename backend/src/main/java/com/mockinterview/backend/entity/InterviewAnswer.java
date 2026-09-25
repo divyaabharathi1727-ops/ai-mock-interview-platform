@@ -29,6 +29,8 @@ public class InterviewAnswer {
     @Column(name = "answered_at", nullable = false)
     private LocalDateTime answeredAt;
 
+    public InterviewAnswer() { }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public InterviewQuestion getQuestion() { return question; }

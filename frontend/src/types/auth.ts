@@ -40,13 +40,14 @@ export interface InterviewUpdateRequest extends InterviewCreateRequest {
   status: InterviewStatus;
 }
 
-export type InterviewQuestionType = "TECHNICAL" | "BEHAVIORAL" | "HR" | "SCENARIO";
+export type InterviewQuestionType = "TEXT" | "MCQ" | "MULTIPLE_SELECT" | "TRUE_FALSE" | "TECHNICAL" | "BEHAVIORAL" | "HR" | "SCENARIO";
 
 export interface InterviewQuestion {
   id: number;
   questionText: string;
   questionOrder: number;
   questionType: InterviewQuestionType;
+  options: string[];
 }
 
 export interface InterviewSession {
@@ -57,7 +58,9 @@ export interface InterviewSession {
 }
 
 export interface AnswerRequest {
-  answerText: string;
+  answerText?: string;
+  selectedOption?: string;
+  selectedOptions?: string[];
 }
 
 export interface AnswerResponse {
@@ -83,4 +86,32 @@ export interface InterviewResults {
   totalQuestions: number;
   answeredQuestions: number;
   completedAt: string | null;
+  overallScore: number | null;
+  technicalScore: number | null;
+  relevanceScore: number | null;
+  clarityScore: number | null;
+  completenessScore: number | null;
+  questions: QuestionResult[];
+}
+
+export interface AnswerEvaluation {
+  available: boolean;
+  correct: boolean | null;
+  overallScore: number | null;
+  technicalScore: number | null;
+  relevanceScore: number | null;
+  clarityScore: number | null;
+  completenessScore: number | null;
+  feedback: string | null;
+  strengths: string[];
+  improvements: string[];
+}
+
+export interface QuestionResult {
+  questionId: number;
+  questionText: string;
+  questionType: InterviewQuestionType;
+  options: string[];
+  candidateAnswer: string | null;
+  evaluation: AnswerEvaluation | null;
 }

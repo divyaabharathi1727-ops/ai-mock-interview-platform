@@ -55,9 +55,6 @@ class InterviewQuestionServiceTest {
                 .thenReturn(Optional.of(interview));
         when(questionRepository.findByInterviewIdOrderByQuestionOrder(1L))
                 .thenReturn(List.of(), List.of(first));
-        when(questionBankService.getDevelopmentQuestions("Java Developer", "Technical"))
-                .thenReturn(List.of(new QuestionBankService.QuestionSeed(
-                        "First question", InterviewQuestionType.TECHNICAL)));
         when(questionRepository.saveAll(any())).thenReturn(List.of(first));
         when(answerRepository.existsByQuestionId(11L)).thenReturn(false);
 

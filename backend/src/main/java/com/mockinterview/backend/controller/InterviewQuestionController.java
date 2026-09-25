@@ -4,7 +4,8 @@ import com.mockinterview.backend.dto.AnswerRequest;
 import com.mockinterview.backend.dto.AnswerResponse;
 import com.mockinterview.backend.dto.InterviewCompletionResponse;
 import com.mockinterview.backend.dto.InterviewSessionResponse;
-import com.mockinterview.backend.dto.InterviewSessionResultsResponse;
+import com.mockinterview.backend.dto.InterviewResultResponse;
+import com.mockinterview.backend.dto.EvaluationResponse;
 import com.mockinterview.backend.dto.QuestionResponse;
 import com.mockinterview.backend.service.InterviewQuestionService;
 import jakarta.validation.Valid;
@@ -63,8 +64,14 @@ public class InterviewQuestionController {
     }
 
     @GetMapping("/results")
-    public ResponseEntity<InterviewSessionResultsResponse> results(
+    public ResponseEntity<InterviewResultResponse> results(
             Authentication authentication, @PathVariable Long interviewId) {
         return ResponseEntity.ok(questionService.getResults(authentication.getName(), interviewId));
+    }
+
+    @GetMapping("/answers/{answerId}/evaluation")
+    public ResponseEntity<EvaluationResponse> evaluation(
+            Authentication authentication, @PathVariable Long interviewId, @PathVariable Long answerId) {
+        return ResponseEntity.ok(questionService.getEvaluation(authentication.getName(), interviewId, answerId));
     }
 }

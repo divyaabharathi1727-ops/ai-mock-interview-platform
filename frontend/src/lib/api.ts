@@ -124,3 +124,7 @@ export function finishInterview(id: number): Promise<InterviewCompletion> {
 export function getInterviewResults(id: number): Promise<InterviewResults> {
   return apiRequest<InterviewResults>(`/api/interviews/${id}/results`);
 }
+
+export function getEvaluation(interviewId: number, answerId: number) {
+  return apiRequest<import("@/types/auth").AnswerEvaluation>(`/api/interviews/${interviewId}/answers/${answerId}/evaluation`);
+}
