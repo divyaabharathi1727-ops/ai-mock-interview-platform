@@ -88,6 +88,7 @@ public class InterviewQuestionService {
         }
         if (interview.getStatus() == InterviewStatus.CREATED) {
             interview.setStatus(InterviewStatus.IN_PROGRESS);
+            interview.setStartedAt(LocalDateTime.now());
             interviewRepository.save(interview);
         }
         return buildSession(questions);
@@ -137,14 +138,16 @@ public class InterviewQuestionService {
         ensureInProgress(interview);
         int totalQuestions = questionRepository.findByInterviewIdOrderByQuestionOrder(interviewId).size();
         int answeredQuestions = Math.toIntExact(answerRepository.countByQuestionInterviewId(interviewId));
-        if (answeredQuestions < totalQuestions) {
-            throw new IllegalArgumentException("Answer all questions before finishing the interview");
-        }
         interview.setStatus(InterviewStatus.COMPLETED);
         interview.setCompletedAt(LocalDateTime.now());
+        if (interview.getStartedAt() != null) {
+            interview.setDurationSeconds(java.time.Duration.between(
+                interview.getStartedAt(), interview.getCompletedAt()).getSeconds());
+        }
         interviewRepository.save(interview);
         return new InterviewCompletionResponse(
-                interview.getStatus(), totalQuestions, answeredQuestions, interview.getCompletedAt());
+            interview.getStatus(), totalQuestions, answeredQuestions, interview.getCompletedAt(),
+            interview.getDurationSeconds());
     }
 
     @Transactional(readOnly = true)
@@ -159,7 +162,12 @@ public class InterviewQuestionService {
                     readList(question.getOptionsJson()), answer == null ? null : answer.getAnswerText(), toEvaluationResponse(evaluation));
         }).toList();
         List<AnswerEvaluation> evaluations = answers.stream().map(answer -> evaluationRepository.findByAnswerId(answer.getId()).orElse(null)).filter(java.util.Objects::nonNull).filter(AnswerEvaluation::isAvailable).toList();
-        return new InterviewResultResponse(interview.getId(), interview.getJobRole(), interview.getInterviewType(), interview.getDifficulty(), interview.getStatus(), questions.size(), answers.size(), interview.getCompletedAt(), average(evaluations, AnswerEvaluation::getOverallScore), average(evaluations, AnswerEvaluation::getTechnicalScore), average(evaluations, AnswerEvaluation::getRelevanceScore), average(evaluations, AnswerEvaluation::getClarityScore), average(evaluations, AnswerEvaluation::getCompletenessScore), results);
+        int correct = (int) evaluations.stream().filter(item -> Boolean.TRUE.equals(item.getCorrect())).count();
+        int incorrect = (int) evaluations.stream().filter(item -> Boolean.FALSE.equals(item.getCorrect())).count();
+        int unanswered = questions.size() - answers.size();
+        InterviewResultResponse response = new InterviewResultResponse(interview.getId(), interview.getJobRole(), interview.getInterviewType(), interview.getDifficulty(), interview.getStatus(), questions.size(), answers.size(), interview.getCompletedAt(), average(evaluations, AnswerEvaluation::getOverallScore), average(evaluations, AnswerEvaluation::getTechnicalScore), average(evaluations, AnswerEvaluation::getRelevanceScore), average(evaluations, AnswerEvaluation::getClarityScore), average(evaluations, AnswerEvaluation::getCompletenessScore), results);
+        response.setSessionMetrics(interview.getDurationSeconds(), correct, incorrect, unanswered);
+        return response;
     }
 
         @Transactional(readOnly = true)

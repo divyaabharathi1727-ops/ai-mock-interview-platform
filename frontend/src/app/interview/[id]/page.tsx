@@ -2,23 +2,25 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { ApiError, finishInterview, getCurrentQuestion, getInterview, startInterview, submitAnswer } from "@/lib/api";
-import type { Interview, InterviewQuestion, InterviewSession } from "@/types/auth";
+import { ApiError, finishInterview, getInterview, getInterviewQuestions, startInterview, submitAnswer } from "@/lib/api";
+import type { AnswerRequest, Interview, InterviewQuestion, InterviewQuestionType } from "@/types/auth";
+
+type DraftAnswer = { text?: string; option?: string; options?: string[] };
+const draftKey = (id: number) => `interview-draft-${id}`;
 
 function SessionContent() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const interviewId = Number(params.id);
   const [interview, setInterview] = useState<Interview | null>(null);
-  const [session, setSession] = useState<InterviewSession | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [selectedOption, setSelectedOption] = useState("");
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<number, DraftAnswer>>({});
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFinishing, setIsFinishing] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -27,76 +29,88 @@ function SessionContent() {
       setIsLoading(false);
       return;
     }
-    async function loadSession() {
+    async function load() {
       try {
         const details = await getInterview(interviewId);
-        setInterview(details);
         if (details.status === "COMPLETED") {
           router.replace(`/results/${interviewId}`);
           return;
         }
-        const started = details.status === "CREATED"
-          ? await startInterview(interviewId)
-          : await getCurrentQuestion(interviewId);
-        setSession(started);
+        const started = details.status === "CREATED" ? await startInterview(interviewId) : null;
+        const loadedQuestions = await getInterviewQuestions(interviewId);
+        setInterview(details);
+        setQuestions(loadedQuestions);
+        if (started?.currentQuestion) setCurrentIndex(Math.max(0, started.currentQuestion.questionOrder - 1));
+        const stored = window.localStorage.getItem(draftKey(interviewId));
+        if (stored) setAnswers(JSON.parse(stored) as Record<number, DraftAnswer>);
       } catch (requestError) {
         setError(requestError instanceof ApiError ? requestError.message : "Could not load this interview.");
       } finally {
         setIsLoading(false);
       }
     }
-    loadSession();
+    load();
   }, [interviewId, router]);
 
-  async function handleAnswer() {
-    const question = session?.currentQuestion;
-    if (!question) return;
-    const isMultiple = question.questionType === "MULTIPLE_SELECT";
-    const isObjective = isMultiple || question.questionType === "MCQ" || question.questionType === "TRUE_FALSE";
-    if ((isMultiple && selectedOptions.length === 0) || (!isMultiple && isObjective && !selectedOption) || (!isObjective && !answer.trim())) {
-      setError(isObjective ? "Select an answer before submitting." : "Write an answer before submitting.");
-      return;
-    }
+  useEffect(() => {
+    if (!isLoading) window.localStorage.setItem(draftKey(interviewId), JSON.stringify(answers));
+  }, [answers, interviewId, isLoading]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = window.setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [isLoading]);
+
+  const question = questions[currentIndex];
+  const currentAnswer = question ? answers[question.id] || {} : {};
+  const answeredCount = useMemo(() => questions.filter((item) => {
+    const value = answers[item.id];
+    return Boolean(value?.text?.trim() || value?.option || value?.options?.length);
+  }).length, [answers, questions]);
+  const unansweredCount = questions.length - answeredCount;
+  const progress = questions.length ? ((currentIndex + 1) / questions.length) * 100 : 0;
+
+  function updateAnswer(value: DraftAnswer) {
+    if (question) setAnswers((current) => ({ ...current, [question.id]: value }));
+  }
+
+  function formatTime(seconds: number) {
+    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  function toRequest(item: InterviewQuestion, value: DraftAnswer): AnswerRequest | null {
+    if (item.questionType === "MULTIPLE_SELECT") return value.options?.length ? { selectedOptions: value.options } : null;
+    if (["MCQ", "TRUE_FALSE"].includes(item.questionType)) return value.option ? { selectedOption: value.option } : null;
+    return value.text?.trim() ? { answerText: value.text.trim() } : null;
+  }
+
+  async function submitInterview() {
+    if (!window.confirm(`Submit this interview? ${unansweredCount} question${unansweredCount === 1 ? " remains" : "s remain"} unanswered.`)) return;
     setError("");
     setIsSubmitting(true);
     try {
-      const response = await submitAnswer(interviewId, question.id, isMultiple
-        ? { selectedOptions }
-        : isObjective ? { selectedOption } : { answerText: answer.trim() });
-      setSession({
-        currentQuestion: response.nextQuestion,
-        readyToFinish: response.readyToFinish,
-        answeredQuestions: response.answeredQuestions,
-        totalQuestions: response.totalQuestions,
-      });
-      setAnswer("");
-      setSelectedOption("");
-      setSelectedOptions([]);
+      for (const item of questions) {
+        const request = toRequest(item, answers[item.id] || {});
+        if (request) await submitAnswer(interviewId, item.id, request);
+      }
+      await finishInterview(interviewId);
+      window.localStorage.removeItem(draftKey(interviewId));
+      router.push(`/results/${interviewId}`);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Could not save your answer.");
+      setError(requestError instanceof ApiError ? requestError.message : "Could not submit this interview.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function handleFinish() {
-    setError("");
-    setIsFinishing(true);
-    try {
-      await finishInterview(interviewId);
-      router.push(`/results/${interviewId}`);
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Could not finish this interview.");
-    } finally {
-      setIsFinishing(false);
-    }
-  }
-
-  const question = session?.currentQuestion as InterviewQuestion | null;
-  const progress = session && session.totalQuestions ? (session.answeredQuestions / session.totalQuestions) * 100 : 0;
-
   const isObjective = question && ["MCQ", "MULTIPLE_SELECT", "TRUE_FALSE"].includes(question.questionType);
-  return <main className="page-shell"><nav className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">●</span> Interview Lab</Link><Link className="text-link" href="/history">Exit session</Link></nav>{isLoading ? <div className="page-state">Starting interview...</div> : error && !session ? <section className="dashboard"><p className="form-error" role="alert">{error}</p><Link className="text-link" href="/history">Return to history</Link></section> : <section className="session-shell"><div className="session-heading"><div><span className="eyebrow">Mock interview</span><h1>{interview?.jobRole}</h1><p>{interview?.interviewType} interview · {interview?.difficulty}</p></div><span className="eyebrow">Mixed question session</span></div>{error && <p className="form-error" role="alert">{error}</p>}<div className="session-progress"><div className="progress-label"><span>Question {session && question ? question.questionOrder : session?.totalQuestions} / {session?.totalQuestions}</span><span>{session?.answeredQuestions} answered</span></div><div className="progress-track"><div className="progress-value" style={{ width: `${progress}%` }} /></div></div>{question ? <div className="question-card"><span className="question-type">{question.questionType === "TEXT" ? "Open response" : question.questionType.replace("_", " ")}</span><h2>{question.questionText}</h2>{isObjective ? <div className="option-list">{question.options.map((option) => <label className="option-choice" key={option}><input type={question.questionType === "MULTIPLE_SELECT" ? "checkbox" : "radio"} name="objective-answer" checked={question.questionType === "MULTIPLE_SELECT" ? selectedOptions.includes(option) : selectedOption === option} onChange={() => question.questionType === "MULTIPLE_SELECT" ? setSelectedOptions((current) => current.includes(option) ? current.filter((value) => value !== option) : [...current, option]) : setSelectedOption(option)} disabled={isSubmitting} /> <span>{option}</span></label>)}</div> : <><label htmlFor="answer">Your answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Take a moment, then write your answer..." maxLength={10000} disabled={isSubmitting} /></>}<div className="answer-footer"><span>{isObjective ? "Select the best answer" : `${answer.length} / 10000`}</span><button className="primary-button" onClick={handleAnswer} disabled={isSubmitting}>{isSubmitting ? isObjective ? "Checking answer..." : "Luna is evaluating..." : "Submit answer"}</button></div></div> : <div className="question-card"><span className="question-type">Ready</span><h2>You have answered every question.</h2><p className="muted-copy">Review your responses, then finish this session when you are ready.</p></div>}{session?.readyToFinish && <button className="finish-button" onClick={handleFinish} disabled={isFinishing}>{isFinishing ? "Finishing interview..." : "Finish interview"}</button>}</section>}</main>;
+  const typeLabel: Record<InterviewQuestionType, string> = {
+    TEXT: "Open response", MCQ: "Multiple choice", MULTIPLE_SELECT: "Select all that apply",
+    TRUE_FALSE: "True or false", TECHNICAL: "Technical", BEHAVIORAL: "Behavioral", HR: "HR", SCENARIO: "Scenario",
+  };
+
+  return <main className="page-shell"><nav className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">●</span> Interview Lab</Link><span className="session-timer" aria-label="Elapsed interview time">{formatTime(elapsedSeconds)}</span><Link className="text-link" href="/history">Exit session</Link></nav>{isLoading ? <div className="page-state">Loading interview...</div> : error && !questions.length ? <section className="dashboard"><p className="form-error" role="alert">{error}</p><Link className="text-link" href="/history">Return to history</Link></section> : <section className="session-shell"><div className="session-heading"><div><span className="eyebrow">{interview?.jobRole}</span><h1>One thoughtful answer at a time.</h1><p>{interview?.interviewType} · {interview?.difficulty}</p></div><span className="eyebrow">{answeredCount} / {questions.length} answered</span></div>{error && <p className="form-error" role="alert">{error}</p>}<div className="session-progress"><div className="progress-label"><span>Question {currentIndex + 1} of {questions.length}</span><span>{unansweredCount} unanswered</span></div><div className="progress-track"><div className="progress-value" style={{ width: `${progress}%` }} /></div></div>{question && <div className="question-card"><span className="question-type">{typeLabel[question.questionType]}</span><h2>{question.questionText}</h2>{isObjective ? <div className="option-list" role={question.questionType === "MULTIPLE_SELECT" ? "group" : "radiogroup"} aria-label="Answer options">{question.options.map((option) => <label className="option-choice" key={option}><input type={question.questionType === "MULTIPLE_SELECT" ? "checkbox" : "radio"} name={`question-${question.id}`} checked={question.questionType === "MULTIPLE_SELECT" ? currentAnswer.options?.includes(option) : currentAnswer.option === option} onChange={() => question.questionType === "MULTIPLE_SELECT" ? updateAnswer({ options: currentAnswer.options?.includes(option) ? currentAnswer.options.filter((item) => item !== option) : [...(currentAnswer.options || []), option] }) : updateAnswer({ option })} /> <span>{option}</span></label>)}</div> : <><label htmlFor="answer">Your answer</label><textarea id="answer" value={currentAnswer.text || ""} onChange={(event) => updateAnswer({ text: event.target.value })} placeholder="Take a moment, then write your answer..." maxLength={10000} /><div className="character-count">{(currentAnswer.text || "").length} / 10000</div></>}<div className="session-actions"><button className="ghost-button" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} disabled={currentIndex === 0 || isSubmitting}>Previous</button>{currentIndex === questions.length - 1 ? <button className="primary-button" onClick={submitInterview} disabled={isSubmitting}>{isSubmitting ? "Submitting interview..." : "Submit interview"}</button> : <button className="primary-button" onClick={() => setCurrentIndex((index) => Math.min(questions.length - 1, index + 1))} disabled={isSubmitting}>Next</button>}</div></div>}</section>}</main>;
 }
 
 export default function InterviewSessionPage() { return <ProtectedRoute><SessionContent /></ProtectedRoute>; }

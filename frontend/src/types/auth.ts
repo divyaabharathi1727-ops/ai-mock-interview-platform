@@ -92,6 +92,10 @@ export interface InterviewResults {
   clarityScore: number | null;
   completenessScore: number | null;
   questions: QuestionResult[];
+  durationSeconds: number | null;
+  correctObjectiveAnswers: number;
+  incorrectObjectiveAnswers: number;
+  unansweredQuestions: number;
 }
 
 export interface AnswerEvaluation {
@@ -114,4 +118,5 @@ export interface QuestionResult {
   options: string[];
   candidateAnswer: string | null;
   evaluation: AnswerEvaluation | null;
+  status: "CORRECT" | "INCORRECT" | "UNANSWERED" | "EVALUATED" | "EVALUATION_UNAVAILABLE";
 }

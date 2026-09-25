@@ -136,7 +136,7 @@ class InterviewQuestionServiceTest {
     }
 
     @Test
-    void finishInterview_shouldRejectIncompleteSession() {
+        void finishInterview_shouldAllowIncompleteSession() {
         Interview interview = interview(1L, "student@example.com", InterviewStatus.IN_PROGRESS);
         when(interviewRepository.findByIdAndUserEmail(1L, "student@example.com"))
                 .thenReturn(Optional.of(interview));
@@ -144,8 +144,10 @@ class InterviewQuestionServiceTest {
                 .thenReturn(List.of(question(11L, interview, 1, "First")));
         when(answerRepository.countByQuestionInterviewId(1L)).thenReturn(0L);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.finishInterview("student@example.com", 1L));
+        InterviewCompletionResponse response = service.finishInterview("student@example.com", 1L);
+
+        assertEquals(InterviewStatus.COMPLETED, response.getStatus());
+        assertEquals(0, response.getAnsweredQuestions());
     }
 
     @Test
