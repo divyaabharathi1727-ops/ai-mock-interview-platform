@@ -17,5 +17,7 @@ public interface AIService {
 
     record TextEvaluation(double overallScore, double technicalScore, double relevanceScore,
                           double clarityScore, double completenessScore, String feedback,
-                          List<String> strengths, List<String> improvements) { }
+                          List<String> strengths, List<String> improvements,
+                          List<String> weaknesses, String improvementSuggestion,
+                          String idealAnswerGuidance) { }
 }

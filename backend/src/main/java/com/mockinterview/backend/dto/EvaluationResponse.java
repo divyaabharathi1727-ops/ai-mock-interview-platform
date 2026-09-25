@@ -13,6 +13,9 @@ public class EvaluationResponse {
     private String feedback;
     private List<String> strengths;
     private List<String> improvements;
+    private List<String> weaknesses;
+    private String improvementSuggestion;
+    private String idealAnswerGuidance;
 
     public EvaluationResponse() { }
     public EvaluationResponse(boolean available, Boolean correct, Double overallScore, Double technicalScore,
@@ -22,6 +25,12 @@ public class EvaluationResponse {
         this.technicalScore = technicalScore; this.relevanceScore = relevanceScore; this.clarityScore = clarityScore;
         this.completenessScore = completenessScore; this.feedback = feedback; this.strengths = strengths;
         this.improvements = improvements;
+    }
+    public void setStructuredFeedback(List<String> weaknesses, String improvementSuggestion,
+                                      String idealAnswerGuidance) {
+        this.weaknesses = weaknesses;
+        this.improvementSuggestion = improvementSuggestion;
+        this.idealAnswerGuidance = idealAnswerGuidance;
     }
     public boolean isAvailable() { return available; }
     public Boolean getCorrect() { return correct; }
@@ -33,4 +42,7 @@ public class EvaluationResponse {
     public String getFeedback() { return feedback; }
     public List<String> getStrengths() { return strengths; }
     public List<String> getImprovements() { return improvements; }
+    public List<String> getWeaknesses() { return weaknesses; }
+    public String getImprovementSuggestion() { return improvementSuggestion; }
+    public String getIdealAnswerGuidance() { return idealAnswerGuidance; }
 }

@@ -39,6 +39,15 @@ public class AnswerEvaluation {
     @Column(length = 4000)
     private String improvements;
 
+    @Column(length = 4000)
+    private String weaknesses;
+
+    @Column(name = "improvement_suggestion", length = 4000)
+    private String improvementSuggestion;
+
+    @Column(name = "ideal_answer_guidance", length = 4000)
+    private String idealAnswerGuidance;
+
     @Column(nullable = false)
     private boolean available;
 
@@ -67,6 +76,12 @@ public class AnswerEvaluation {
     public void setStrengths(String strengths) { this.strengths = strengths; }
     public String getImprovements() { return improvements; }
     public void setImprovements(String improvements) { this.improvements = improvements; }
+    public String getWeaknesses() { return weaknesses; }
+    public void setWeaknesses(String weaknesses) { this.weaknesses = weaknesses; }
+    public String getImprovementSuggestion() { return improvementSuggestion; }
+    public void setImprovementSuggestion(String improvementSuggestion) { this.improvementSuggestion = improvementSuggestion; }
+    public String getIdealAnswerGuidance() { return idealAnswerGuidance; }
+    public void setIdealAnswerGuidance(String idealAnswerGuidance) { this.idealAnswerGuidance = idealAnswerGuidance; }
     public boolean isAvailable() { return available; }
     public void setAvailable(boolean available) { this.available = available; }
     public LocalDateTime getCreatedAt() { return createdAt; }

@@ -71,14 +71,16 @@ public class OpenAIService implements AIService {
                                              String question, String answer) {
         JsonNode response = call("Evaluate this interview answer and return JSON only with numeric "
                 + "overallScore, technicalScore, relevanceScore, clarityScore, completenessScore "
-                + "from 0 to 10, plus feedback, strengths array, improvements array. Role: " + jobRole
+                + "from 0 to 10, plus feedback, strengths array, weaknesses array, improvements array, "
+                + "improvementSuggestion, and idealAnswerGuidance. Role: " + jobRole
                 + ". Interview type: " + interviewType + ". Difficulty: " + difficulty
                 + ". Question: " + question + ". Candidate answer: " + answer);
-        return new TextEvaluation(response.path("overallScore").asDouble(),
-            response.path("technicalScore").asDouble(), response.path("relevanceScore").asDouble(),
-            response.path("clarityScore").asDouble(), response.path("completenessScore").asDouble(),
-            response.path("feedback").asText("Evaluation unavailable"), textList(response.path("strengths")),
-            textList(response.path("improvements")));
+        return new TextEvaluation(normalizeScore(response.path("overallScore").asDouble()),
+            normalizeScore(response.path("technicalScore").asDouble()), normalizeScore(response.path("relevanceScore").asDouble()),
+            normalizeScore(response.path("clarityScore").asDouble()), normalizeScore(response.path("completenessScore").asDouble()),
+            limit(response.path("feedback").asText("Evaluation unavailable")), textList(response.path("strengths")),
+            textList(response.path("improvements")), textList(response.path("weaknesses")),
+            limit(response.path("improvementSuggestion").asText("")), limit(response.path("idealAnswerGuidance").asText("")));
     }
 
     private JsonNode call(String prompt) {
@@ -106,9 +108,12 @@ public class OpenAIService implements AIService {
 
     private List<String> textList(JsonNode node) {
         List<String> values = new ArrayList<>();
-        if (node != null && node.isArray()) node.forEach(value -> values.add(value.asText()));
+        if (node != null && node.isArray()) node.forEach(value -> { if (values.size() < 8) values.add(limit(value.asText())); });
         return values;
     }
+
+    private double normalizeScore(double value) { return Double.isFinite(value) ? Math.max(0, Math.min(10, value)) : 0; }
+    private static String limit(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 1000)); }
 
     private void validateQuestion(String text, InterviewQuestionType type, List<String> options,
                                   String correctAnswer, List<String> correctAnswers) {

@@ -9,6 +9,7 @@ import type {
   InterviewCreateRequest,
   InterviewQuestion,
   InterviewResults,
+  InterviewAnalytics,
   InterviewSession,
   InterviewUpdateRequest,
   User,
@@ -127,4 +128,8 @@ export function getInterviewResults(id: number): Promise<InterviewResults> {
 
 export function getEvaluation(interviewId: number, answerId: number) {
   return apiRequest<import("@/types/auth").AnswerEvaluation>(`/api/interviews/${interviewId}/answers/${answerId}/evaluation`);
+}
+
+export function getInterviewAnalytics(): Promise<InterviewAnalytics> {
+  return apiRequest<InterviewAnalytics>("/api/interviews/analytics");
 }

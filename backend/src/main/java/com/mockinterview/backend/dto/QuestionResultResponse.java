@@ -11,6 +11,7 @@ public class QuestionResultResponse {
     private String candidateAnswer;
     private EvaluationResponse evaluation;
     private String status;
+    private String correctAnswer;
 
     public QuestionResultResponse(Long questionId, String questionText, InterviewQuestionType questionType,
                                   List<String> options, String candidateAnswer, EvaluationResponse evaluation) {
@@ -27,4 +28,6 @@ public class QuestionResultResponse {
     public String getCandidateAnswer() { return candidateAnswer; }
     public EvaluationResponse getEvaluation() { return evaluation; }
     public String getStatus() { return status; }
+    public void setCorrectAnswer(String correctAnswer) { this.correctAnswer = correctAnswer; }
+    public String getCorrectAnswer() { return correctAnswer; }
 }

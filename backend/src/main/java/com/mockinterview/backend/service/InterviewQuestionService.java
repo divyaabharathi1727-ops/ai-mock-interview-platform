@@ -8,6 +8,7 @@ import com.mockinterview.backend.dto.QuestionResponse;
 import com.mockinterview.backend.dto.EvaluationResponse;
 import com.mockinterview.backend.dto.InterviewResultResponse;
 import com.mockinterview.backend.dto.QuestionResultResponse;
+import com.mockinterview.backend.dto.InterviewAnalyticsResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -167,7 +168,35 @@ public class InterviewQuestionService {
         int unanswered = questions.size() - answers.size();
         InterviewResultResponse response = new InterviewResultResponse(interview.getId(), interview.getJobRole(), interview.getInterviewType(), interview.getDifficulty(), interview.getStatus(), questions.size(), answers.size(), interview.getCompletedAt(), average(evaluations, AnswerEvaluation::getOverallScore), average(evaluations, AnswerEvaluation::getTechnicalScore), average(evaluations, AnswerEvaluation::getRelevanceScore), average(evaluations, AnswerEvaluation::getClarityScore), average(evaluations, AnswerEvaluation::getCompletenessScore), results);
         response.setSessionMetrics(interview.getDurationSeconds(), correct, incorrect, unanswered);
+        for (int index = 0; index < questions.size(); index++) {
+            InterviewQuestion question = questions.get(index);
+            if (question.getQuestionType() == InterviewQuestionType.MCQ || question.getQuestionType() == InterviewQuestionType.TRUE_FALSE) {
+                results.get(index).setCorrectAnswer(question.getCorrectAnswer());
+            } else if (question.getQuestionType() == InterviewQuestionType.MULTIPLE_SELECT) {
+                results.get(index).setCorrectAnswer(String.join(", ", readList(question.getCorrectAnswersJson())));
+            }
+        }
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public InterviewAnalyticsResponse getAnalytics(String email) {
+        List<Interview> interviews = interviewRepository.findByUserEmailOrderByCreatedAtDesc(normalizeEmail(email));
+        List<InterviewResultResponse> completed = interviews.stream()
+                .filter(item -> item.getStatus() == InterviewStatus.COMPLETED)
+                .map(item -> getResults(email, item.getId())).toList();
+        List<Double> scores = completed.stream().map(InterviewResultResponse::getOverallScore)
+                .filter(java.util.Objects::nonNull).toList();
+        Long averageDuration = completed.stream().map(InterviewResultResponse::getDurationSeconds)
+                .filter(java.util.Objects::nonNull).mapToLong(Long::longValue).average().isPresent()
+                ? Math.round(completed.stream().map(InterviewResultResponse::getDurationSeconds).filter(java.util.Objects::nonNull).mapToLong(Long::longValue).average().orElse(0)) : null;
+        List<InterviewAnalyticsResponse.AnalyticsPoint> trend = completed.reversed().stream()
+                .map(item -> new InterviewAnalyticsResponse.AnalyticsPoint(item.getJobRole(), item.getOverallScore(), item.getDurationSeconds())).toList();
+        List<String> recommendations = new java.util.ArrayList<>();
+        if (completed.stream().anyMatch(item -> item.getTechnicalScore() != null && item.getTechnicalScore() < 6)) recommendations.add("Review core technical concepts and explain them with practical examples.");
+        if (completed.stream().anyMatch(item -> item.getClarityScore() != null && item.getClarityScore() < 6)) recommendations.add("Practice concise, structured explanations before adding detail.");
+        if (recommendations.isEmpty() && !completed.isEmpty()) recommendations.add("Keep practicing mixed technical and scenario questions to maintain your progress.");
+        return new InterviewAnalyticsResponse(interviews.size(), completed.size(), interviews.size() - completed.size(), scores.isEmpty() ? null : scores.stream().mapToDouble(Double::doubleValue).average().orElse(0), scores.isEmpty() ? null : scores.stream().mapToDouble(Double::doubleValue).max().orElse(0), averageDuration, completed.stream().mapToInt(InterviewResultResponse::getTotalQuestions).sum(), completed.stream().mapToInt(InterviewResultResponse::getAnsweredQuestions).sum(), completed.stream().mapToInt(InterviewResultResponse::getCorrectObjectiveAnswers).sum(), completed.stream().mapToInt(InterviewResultResponse::getIncorrectObjectiveAnswers).sum(), trend, List.of("Use your highest-scoring question types as a model for future answers."), recommendations);
     }
 
         @Transactional(readOnly = true)
@@ -280,13 +309,14 @@ public class InterviewQuestionService {
             evaluation.setFeedback(correct ? "Correct answer." : "Review the concepts behind this question.");
         } else if (aiService != null) {
             try { AIService.TextEvaluation result = aiService.evaluateTextAnswer(interview.getJobRole(), interview.getInterviewType(), interview.getDifficulty().name(), question.getQuestionText(), answer.getAnswerText());
-                evaluation.setOverallScore(result.overallScore()); evaluation.setTechnicalScore(result.technicalScore()); evaluation.setRelevanceScore(result.relevanceScore()); evaluation.setClarityScore(result.clarityScore()); evaluation.setCompletenessScore(result.completenessScore()); evaluation.setFeedback(result.feedback()); evaluation.setStrengths(writeList(result.strengths())); evaluation.setImprovements(writeList(result.improvements())); evaluation.setAvailable(true);
+                evaluation.setOverallScore(score(result.overallScore())); evaluation.setTechnicalScore(score(result.technicalScore())); evaluation.setRelevanceScore(score(result.relevanceScore())); evaluation.setClarityScore(score(result.clarityScore())); evaluation.setCompletenessScore(score(result.completenessScore())); evaluation.setFeedback(result.feedback()); evaluation.setStrengths(writeList(result.strengths())); evaluation.setImprovements(writeList(result.improvements())); evaluation.setWeaknesses(writeList(result.weaknesses())); evaluation.setImprovementSuggestion(result.improvementSuggestion()); evaluation.setIdealAnswerGuidance(result.idealAnswerGuidance()); evaluation.setAvailable(true);
             } catch (RuntimeException exception) { evaluation.setFeedback("AI evaluation unavailable."); }
         }
         evaluationRepository.save(evaluation);
     }
 
-    private EvaluationResponse toEvaluationResponse(AnswerEvaluation evaluation) { return evaluation == null ? null : new EvaluationResponse(evaluation.isAvailable(), evaluation.getCorrect(), evaluation.getOverallScore(), evaluation.getTechnicalScore(), evaluation.getRelevanceScore(), evaluation.getClarityScore(), evaluation.getCompletenessScore(), evaluation.getFeedback(), readList(evaluation.getStrengths()), readList(evaluation.getImprovements())); }
+    private EvaluationResponse toEvaluationResponse(AnswerEvaluation evaluation) { if (evaluation == null) return null; EvaluationResponse response = new EvaluationResponse(evaluation.isAvailable(), evaluation.getCorrect(), evaluation.getOverallScore(), evaluation.getTechnicalScore(), evaluation.getRelevanceScore(), evaluation.getClarityScore(), evaluation.getCompletenessScore(), evaluation.getFeedback(), readList(evaluation.getStrengths()), readList(evaluation.getImprovements())); response.setStructuredFeedback(readList(evaluation.getWeaknesses()), evaluation.getImprovementSuggestion(), evaluation.getIdealAnswerGuidance()); return response; }
+    private double score(double value) { return Double.isFinite(value) ? Math.max(0, Math.min(10, value)) : 0; }
     private Double average(List<AnswerEvaluation> evaluations, java.util.function.Function<AnswerEvaluation, Double> metric) { List<Double> values = evaluations.stream().map(metric).filter(java.util.Objects::nonNull).toList(); return values.isEmpty() ? null : values.stream().mapToDouble(Double::doubleValue).average().orElse(0); }
     private String writeList(List<String> values) { try { return objectMapper.writeValueAsString(values == null ? List.of() : values); } catch (JsonProcessingException exception) { throw new IllegalArgumentException("Could not store answer data", exception); } }
     private List<String> readList(String value) { try { return value == null || value.isBlank() ? List.of() : objectMapper.readValue(value, new TypeReference<>() { }); } catch (JsonProcessingException exception) { return List.of(); } }

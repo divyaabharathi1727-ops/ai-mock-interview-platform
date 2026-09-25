@@ -109,6 +109,9 @@ export interface AnswerEvaluation {
   feedback: string | null;
   strengths: string[];
   improvements: string[];
+  weaknesses: string[];
+  improvementSuggestion: string | null;
+  idealAnswerGuidance: string | null;
 }
 
 export interface QuestionResult {
@@ -119,4 +122,21 @@ export interface QuestionResult {
   candidateAnswer: string | null;
   evaluation: AnswerEvaluation | null;
   status: "CORRECT" | "INCORRECT" | "UNANSWERED" | "EVALUATED" | "EVALUATION_UNAVAILABLE";
+  correctAnswer?: string | null;
+}
+
+export interface InterviewAnalytics {
+  totalInterviews: number;
+  completedInterviews: number;
+  inProgressInterviews: number;
+  averageScore: number | null;
+  bestScore: number | null;
+  averageDurationSeconds: number | null;
+  totalQuestions: number;
+  totalAnsweredQuestions: number;
+  totalCorrectObjectiveAnswers: number;
+  totalIncorrectObjectiveAnswers: number;
+  trend: { label: string; score: number | null; durationSeconds: number | null }[];
+  strongAreas: string[];
+  practiceRecommendations: string[];
 }
